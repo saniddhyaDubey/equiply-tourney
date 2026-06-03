@@ -273,3 +273,29 @@ equiply/
 | `POST` | `/api/enrich` | Upload CSV → returns enriched JSON rows + decoder_logic map |
 | `POST` | `/api/enrich/download` | Upload CSV → streams back enriched CSV file |
 | `GET` | `/*` | Serves the React SPA (production, requires `npm run build`) |
+
+---
+
+## Future Improvements
+
+### 1 — Persistent Decoder Registry with Confidence Scoring
+
+Right now every manufacturer decoder is a hand-written function in `data_parser.py`, and accuracy is binary — either a pattern matches or it returns null. A proper next step is a **decoder registry** backed by a database (e.g. Postgres or SQLite) where each decoder entry stores the regex/format string, the manufacturer it applies to, a `confidence` float (0–1), and a `sample_serials` array used to validate it.
+
+When a serial doesn't cleanly match any known pattern, instead of silently returning null the system could run a **fuzzy matcher** against the registry — trying partial matches and returning the best candidate along with its confidence score. The UI would then render low-confidence decodes differently from high-confidence ones (e.g. a yellow badge vs green), giving operators an instant visual sense of which dates to trust and which to verify manually. New manufacturers could be onboarded by submitting a sample serial + known date to a `POST /api/decoders` endpoint, which validates the pattern against the sample before saving it — making the system self-extending without a code deploy.
+
+---
+
+### 2 — Async Enrichment Pipeline with a Job Queue
+
+The current `/api/enrich` endpoint is synchronous — a 5,000-row CSV with 200 unique models would fire ~200 sequential FDA API calls, each with a 5-second timeout, potentially blocking for 15+ minutes. For any production workload this needs to be replaced with an **async job queue**.
+
+The redesigned flow: `POST /api/enrich` immediately returns a `job_id`, and the enrichment runs in a background worker (Celery + Redis, or FastAPI `BackgroundTasks` for lighter loads). The client polls `GET /api/jobs/{job_id}` for status (`queued → processing → done`), and the Results page renders a live progress bar — "Decoded 148 / 200 models…" — instead of a frozen spinner. Once complete, the enriched data is stored server-side (temporarily, e.g. 1 hour TTL) and the client fetches it in one call. This change also enables **batch processing** — uploading multiple CSVs simultaneously, each getting its own job, with results merged or viewed separately.
+
+---
+
+### 3 — FDA Lookup Expansion via Fuzzy Model Name Matching
+
+The current Tier 1 FDA lookup uses an exact phrase search (`device_name:"MODEL"`), which is why only 21 of 49 unique models return a result — the 510k database indexes generic device descriptions, not brand model names. The gap could be closed significantly with a **two-pass fuzzy strategy**.
+
+Pass 1 (current): exact phrase match on `device_name`. Pass 2 (new): if no hit, strip common suffixes and noise tokens (`+`, `PLUS`, `SERIES`, `-`, version numbers) from the model name and retry with the cleaned stem — e.g. `AEDPLUS` → `AED`, `INTELLIVUE MP50` → `INTELLIVUE`. Pass 3: query the **openFDA device/classification endpoint** (`product_code` search) using the manufacturer name to pull all device classes that company has ever registered, then pick the closest match by edit distance against the model name. Each match would carry a `match_method` tag (`exact`, `stem`, `fuzzy_class`) surfaced in the decoder-logic tooltip so reviewers can see exactly how the type was inferred — keeping the system auditable even as the lookup becomes more aggressive.
