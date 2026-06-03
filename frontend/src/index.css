@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #FAFAFA;
+    color: #26305D;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer utilities {
+  .scrollbar-navy {
+    scrollbar-width: thin;
+    scrollbar-color: #26305D #e2e5f0;
+  }
+  .scrollbar-navy::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-navy::-webkit-scrollbar-track {
+    background: #e2e5f0;
+    border-radius: 3px;
+  }
+  .scrollbar-navy::-webkit-scrollbar-thumb {
+    background: #26305D;
+    border-radius: 3px;
+  }
+}
+
+/* Drag-and-drop active state animation */
+@keyframes pulse-border {
+  0%, 100% { border-color: #26305D; }
+  50% { border-color: #4FC3F7; }
+}
+
+.drag-active {
+  animation: pulse-border 1s ease-in-out infinite;
+}
+
+/* Fade-in-up for page transitions */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-fade-in-up-delay-1 { animation-delay: 0.1s; }
+.animate-fade-in-up-delay-2 { animation-delay: 0.2s; }
+.animate-fade-in-up-delay-3 { animation-delay: 0.3s; }
